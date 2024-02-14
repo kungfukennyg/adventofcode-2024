@@ -7,47 +7,109 @@ import (
 )
 
 func main() {
-	fmt.Println(winningNumbers(input))
+	fmt.Println(scorePartOne(input))
+	fmt.Println(scorePartTwo(input))
 }
 
 var Reset = "\033[0m"
 var Green = "\033[32m"
 var Red = "\033[31m"
 
-func winningNumbers(input string) int64 {
+func scorePartOne(input string) int64 {
 	var total int64
+	for _, card := range parseScorecards(input) {
+		var points int64
+		for i := 0; i < len(card.matching); i++ {
+			if points == 0 {
+				points = 1
+			} else {
+				points *= 2
+			}
+		}
+		total += points
+	}
+	return total
+}
+
+func parseScorecards(input string) []scorecard {
+	cards := []scorecard{}
 	for _, line := range strings.Split(input, "\n") {
-		// collect winning numbers
-		winning := map[int64]struct{}{}
-		fmt.Printf("%s ", strings.Split(line, ":")[0])
+		sc := scorecard{
+			winning:  map[int64]struct{}{},
+			numbers:  []int64{},
+			matching: []int64{},
+		}
+		game := strings.ReplaceAll(strings.Split(line, ":")[0], "Card ", "")
+		game = strings.TrimSpace(game)
+		gameID, _ := strconv.ParseInt(game, 10, 64)
+		sc.game = gameID
+		fmt.Printf("Card %s: ", game)
 		numbers := strings.Split(line, ":")[1]
+		// gather winning numbers
 		for _, numStr := range strings.Split(strings.TrimSpace(strings.Split(numbers, "|")[0]), " ") {
-			num, _ := strconv.ParseInt(numStr, 0, 64)
-			winning[num] = struct{}{}
+			winner, _ := strconv.ParseInt(numStr, 0, 64)
+			sc.winning[winner] = struct{}{}
 			fmt.Printf("%s ", numStr)
 		}
 		fmt.Printf(" | ")
 
-		points := int64(0)
+		// now go through the actual ticket numbers and find matches
 		for _, numStr := range strings.Split(strings.TrimSpace(strings.Split(numbers, "|")[1]), " ") {
 			num, err := strconv.ParseInt(numStr, 0, 64)
 			if err != nil {
 				continue
 			}
-			if _, ok := winning[num]; ok {
-				if points == 0 {
-					points = 1
-				} else {
-					points *= 2
-				}
+			sc.numbers = append(sc.numbers, num)
+			if _, ok := sc.winning[num]; ok {
+				sc.matching = append(sc.matching, num)
 				fmt.Printf("%s%s%s ", Green, numStr, Reset)
 			} else {
 				fmt.Printf("%s%s%s ", Red, numStr, Reset)
 			}
 		}
-		fmt.Printf("\n\t%d\n", points)
-		total += points
+		cards = append(cards, sc)
+		fmt.Println()
 	}
+	return cards
+}
+
+type scorecard struct {
+	game     int64
+	winning  map[int64]struct{}
+	numbers  []int64
+	matching []int64
+}
+
+func scorePartTwo(input string) int64 {
+	// parse input and collect winning cards
+	cards := parseScorecards(input)
+	idToCard := map[int64]scorecard{}
+	for _, sc := range cards {
+		idToCard[sc.game] = sc
+	}
+
+	var total int64
+	idToCount := map[int64]int64{}
+	for _, card := range cards {
+		if _, ok := idToCount[card.game]; !ok {
+			idToCount[card.game] = 1
+		} else {
+			idToCount[card.game] += 1
+		}
+		// for each card/copy, how many cards do we copy
+		count := idToCount[card.game]
+		for j := 0; j < int(count); j++ {
+			for i := 0; i < len(card.matching); i++ {
+				gameID := card.game + int64(i) + 1
+				if _, ok := idToCard[gameID]; ok {
+					idToCount[gameID] += 1
+				}
+			}
+		}
+
+		total += idToCount[card.game]
+	}
+
 	return total
 }
 
